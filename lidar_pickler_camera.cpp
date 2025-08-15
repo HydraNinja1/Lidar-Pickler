@@ -13,16 +13,23 @@
 
 namespace fs = std::filesystem;
 using json = nlohmann::json;
+using std::placeholders::_1;
 
 class LidarPickler : public rclcpp::Node {
 public:
     LidarPickler() : Node("lidar_pickler_node"){
         
-        // set up output directories - the path is passed as an argument 
+        // set up output directories paths as arguments
         lidar_dir_ = this->declare_parameter<std::string>("lidar_dir", "./lidar_frames_out");
         imu_dir_ = this->declare_parameter<std::string>("imu_dir", "./imu_frames_out");
         camera_dir_ = this->declare_parameter<std::string>("camera_dir", "./camera_frames_out");
 
+        // set up topic parameters as arguments
+        lidar_topic_ = this->declare_parameter<std::string>("lidar_topic", "/ouster/points"); 
+        imu_topic_ = this->declare_parameter<std::string>("imu_topic", "/ouster/imu");
+        camera_topic_ = this->declare_parameter<std::string>("camera_topic", "/cam_2/color/image_raw");
+
+        // setting up the output directories
         prepare_output_dir(lidar_dir_);
         prepare_output_dir(imu_dir_);
         prepare_output_dir(camera_dir_);
@@ -32,22 +39,18 @@ public:
         
         // set up the point cloud subscriber
         lidar_sub_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
-            "/ouster/points", rclcpp::SensorDataQoS(),
-            std::bind(&LidarPickler::lidar_callback, this, std::placeholders::_1)
+            lidar_topic_, qos, std::bind(&LidarPickler::lidar_callback, this, _1)
         );
         
         // set up the imu subscriber
         imu_sub_ = this->create_subscription<sensor_msgs::msg::Imu>(
-            "/ouster/imu", rclcpp::SensorDataQoS(),
-            std::bind(&LidarPickler::imu_callback, this, std::placeholders::_1)
+            imu_topic_, qos, std::bind(&LidarPickler::imu_callback, this, _1)
         );
 
         // set up the camera subscriber
-        camera_sub_ = this->create_subscription<sensor_msgs::msg::Image>( // change message type to correct type
-            "/cam_2/color/image_raw", rclcpp::SensorDataQoS(), // Change topic to correct topic
-            std::bind(&LidarPickler::camera_callback, this, std::placeholders::_1)
+        camera_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
+            camera_topic_, qos, std::bind(&LidarPickler::camera_callback, this, _1)
         );
-
 
         RCLCPP_INFO(this->get_logger(), "Lidar, IMU + Camera Pickler has been initialised.");
     }
