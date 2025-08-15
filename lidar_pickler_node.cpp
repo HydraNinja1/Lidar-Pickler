@@ -128,16 +128,19 @@ private:
         }
 
         std::ofstream file(lidar_dir_ + "/metadata.json");
-        file << j.dump(4);  // Pretty-print with 4-space indentation
+        file << j.dump(4);  // Print with 4-space indentation
         file.close();
         saved = true;
     }
 
     rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr lidar_sub_;
     rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub_;
-    // int file_ind_;
+    
     std::string lidar_dir_;
     std::string imu_dir_;
+    std::string lidar_topic_;
+    std::string imu_topic_;
+    
 
 };
     
