@@ -175,7 +175,7 @@ private:
     rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr lidar_sub_;
     rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub_;
     rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr camera_sub_; // change message type for camera
-    // int file_ind_;
+    
     std::string lidar_dir_;
     std::string imu_dir_;
     std::string camera_dir_;
