@@ -34,7 +34,7 @@ public:
         prepare_output_dir(imu_dir_);
         prepare_output_dir(camera_dir_);
         
-        // est up the qos profle this will be dependant on how the publisher of the topic is set up.
+        // set up the qos profle this will be dependant on how the publisher of the topic is set up.
         rclcpp::SensorDataQoS qos;
         
         // set up the point cloud subscriber
