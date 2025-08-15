@@ -179,6 +179,9 @@ private:
     std::string lidar_dir_;
     std::string imu_dir_;
     std::string camera_dir_;
+    std::string lidar_topic_;
+    std::string imu_topic_;
+    std::string camera_topic_;
 
 };
     
