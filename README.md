@@ -25,8 +25,8 @@ LidarReplay (lidar_unpickler_node.cpp)
 - Handles malformed or missing data gracefully.
 
 # Installation
-```bash
 Clone and build inside your ROS 2 workspace:
+```bash
 cd ~/ros2_ws/src
 git clone https://github.com/HydraNinja1/lidar-pickler.git
 cd ~/ros2_ws
