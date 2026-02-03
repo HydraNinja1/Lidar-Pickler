@@ -14,8 +14,9 @@ using json = nlohmann::json;
 class LidarReplay : public rclcpp::Node {
 public:
     LidarReplay() : Node("lidar_replay_node") {
-        lidar_dir_ = this->declare_parameter<std::string>("lidar_dir", "./lidar_frames_out");
-        imu_dir_ = this->declare_parameter<std::string>("imu_dir", "./imu_frames_out");
+        parent_dir_ = this->declare_parameter<std::string>("parent_dir", ".");
+        lidar_dir_ = parent_dir_+ "/lidar_frames_out";
+        imu_dir_ = parent_dir_ + "/imu_frames_out";
         frame_id_override_ = this->declare_parameter<std::string>("frame_id_override", "");
 
         load_lidar_metadata();
@@ -129,48 +130,48 @@ private:
         lidar_pub_->publish(msg);
     }
 
-void publish_imu_from_file(const fs::path& filepath, const rclcpp::Time& timestamp) {
-    std::ifstream in(filepath);
-    if (!in) {
-        RCLCPP_WARN(this->get_logger(), "Failed to open IMU file: %s", filepath.c_str());
-        return;
+    void publish_imu_from_file(const fs::path& filepath, const rclcpp::Time& timestamp) {
+        std::ifstream in(filepath);
+        if (!in) {
+            RCLCPP_WARN(this->get_logger(), "Failed to open IMU file: %s", filepath.c_str());
+            return;
+        }
+
+        json j;
+        try {
+            in >> j;
+        } catch (const json::parse_error& e) {
+            RCLCPP_WARN(this->get_logger(), "Failed to parse IMU JSON file: %s. Error: %s", filepath.c_str(), e.what());
+            return;  // Skip publishing this file
+        }
+
+        try {
+            sensor_msgs::msg::Imu msg;
+            msg.header.stamp = timestamp;
+            msg.header.frame_id = j["frame_id"];
+
+            msg.orientation.x = j["orientation"]["x"];
+            msg.orientation.y = j["orientation"]["y"];
+            msg.orientation.z = j["orientation"]["z"];
+            msg.orientation.w = j["orientation"]["w"];
+            msg.orientation_covariance = j["orientation_covariance"];
+
+            msg.angular_velocity.x = j["angular_velocity"]["x"];
+            msg.angular_velocity.y = j["angular_velocity"]["y"];
+            msg.angular_velocity.z = j["angular_velocity"]["z"];
+            msg.angular_velocity_covariance = j["angular_velocity_covariance"];
+
+            msg.linear_acceleration.x = j["linear_acceleration"]["x"];
+            msg.linear_acceleration.y = j["linear_acceleration"]["y"];
+            msg.linear_acceleration.z = j["linear_acceleration"]["z"];
+            msg.linear_acceleration_covariance = j["linear_acceleration_covariance"];
+
+            imu_pub_->publish(msg);
+        } catch (const json::exception& e) {
+            RCLCPP_WARN(this->get_logger(), "Incomplete or malformed data in IMU JSON file: %s. Error: %s", filepath.c_str(), e.what());
+            return;  // Skip publishing malformed data
+        }
     }
-
-    json j;
-    try {
-        in >> j;
-    } catch (const json::parse_error& e) {
-        RCLCPP_WARN(this->get_logger(), "Failed to parse IMU JSON file: %s. Error: %s", filepath.c_str(), e.what());
-        return;  // Skip publishing this file
-    }
-
-    try {
-        sensor_msgs::msg::Imu msg;
-        msg.header.stamp = timestamp;
-        msg.header.frame_id = j["frame_id"];
-
-        msg.orientation.x = j["orientation"]["x"];
-        msg.orientation.y = j["orientation"]["y"];
-        msg.orientation.z = j["orientation"]["z"];
-        msg.orientation.w = j["orientation"]["w"];
-        msg.orientation_covariance = j["orientation_covariance"];
-
-        msg.angular_velocity.x = j["angular_velocity"]["x"];
-        msg.angular_velocity.y = j["angular_velocity"]["y"];
-        msg.angular_velocity.z = j["angular_velocity"]["z"];
-        msg.angular_velocity_covariance = j["angular_velocity_covariance"];
-
-        msg.linear_acceleration.x = j["linear_acceleration"]["x"];
-        msg.linear_acceleration.y = j["linear_acceleration"]["y"];
-        msg.linear_acceleration.z = j["linear_acceleration"]["z"];
-        msg.linear_acceleration_covariance = j["linear_acceleration_covariance"];
-
-        imu_pub_->publish(msg);
-    } catch (const json::exception& e) {
-        RCLCPP_WARN(this->get_logger(), "Incomplete or malformed data in IMU JSON file: %s. Error: %s", filepath.c_str(), e.what());
-        return;  // Skip publishing malformed data
-    }
-}
 
     std::pair<rclcpp::Time, bool> extract_timestamp(const std::string& filename) {
         try {
@@ -205,7 +206,12 @@ void publish_imu_from_file(const fs::path& filepath, const rclcpp::Time& timesta
 
 int main(int argc, char* argv[]) {
     rclcpp::init(argc, argv);
-    rclcpp::spin(std::make_shared<LidarReplay>());
+    auto node = std::make_shared<LidarReplay>();
+    
+    // using Multi-threaded Executor allows multiple callbacks to run in parallel using separate threads
+    rclcpp::executors::MultiThreadedExecutor executor;
+    executor.add_node(node);
+    executor.spin();
     rclcpp::shutdown();
     return 0;
 }
