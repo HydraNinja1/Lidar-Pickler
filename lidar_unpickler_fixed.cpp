@@ -17,52 +17,33 @@
 namespace fs = std::filesystem;
 using json = nlohmann::json;
 
-class LidarPicklerRepublisher : public rclcpp::Node
-{
+class LidarReplay : public rclcpp::Node {
 public:
-    LidarPicklerRepublisher()
-    : Node("lidar_pickler_republisher")
-    {
-        lidar_dir_ = declare_parameter<std::string>("lidar_dir", "./lidar_frames_out");
-        imu_dir_   = declare_parameter<std::string>("imu_dir", "./imu_frames_out");
-        csv_dir_   = declare_parameter<std::string>("csvs_dir", "./csvs_out");
+    LidarReplay() : Node("lidar_mocap_replay_node") {
+        parent_dir_ = this->declare_parameter<std::string>("parent_dir", ".")
+        lidar_dir_ = parent_dir_ + "/lidar_frames_out";
+        imu_dir_   = parent_dir_ + "/imu_frames_out";
+        csv_dir_   = parent_dir_ + "/csvs_out";
         loop_      = declare_parameter<bool>("loop", true);
 
-        lidar_pub_ = create_publisher<sensor_msgs::msg::PointCloud2>(
-            "/ouster/points", rclcpp::SensorDataQoS());
-
-        imu_pub_ = create_publisher<sensor_msgs::msg::Imu>(
-            "/ouster/imu", rclcpp::SensorDataQoS());
-
-        mocap_pub_ = create_publisher<geometry_msgs::msg::PoseStamped>(
-            "/vrpn_mocap/Octopus/pose", rclcpp::SensorDataQoS());
+        lidar_pub_ = create_publisher<sensor_msgs::msg::PointCloud2>("/ouster/points", rclcpp::SensorDataQoS());
+        imu_pub_ = create_publisher<sensor_msgs::msg::Imu>("/ouster/imu", rclcpp::SensorDataQoS());
+        mocap_pub_ = create_publisher<geometry_msgs::msg::PoseStamped>("/vrpn_mocap/Octopus/pose", rclcpp::SensorDataQoS());
 
         load_lidar();
         load_imu();
         load_mocap();
 
-        RCLCPP_INFO(get_logger(),
-            "Loaded %zu lidar, %zu imu, %zu mocap messages",
+        RCLCPP_INFO(get_logger(),"Loaded %zu lidar, %zu imu, %zu mocap messages",
             lidar_msgs_.size(), imu_msgs_.size(), mocap_msgs_.size());
 
-        lidar_timer_ = create_wall_timer(
-            std::chrono::milliseconds(50),
-            std::bind(&LidarPicklerRepublisher::publish_lidar, this));
-
-        imu_timer_ = create_wall_timer(
-            std::chrono::milliseconds(10),
-            std::bind(&LidarPicklerRepublisher::publish_imu, this));
-
-        mocap_timer_ = create_wall_timer(
-            std::chrono::milliseconds(20),
-            std::bind(&LidarPicklerRepublisher::publish_mocap, this));
+        lidar_timer_ = create_wall_timer(std::chrono::milliseconds(50), std::bind(&LidarReplay::publish_lidar, this));
+        imu_timer_ = create_wall_timer(std::chrono::milliseconds(10), std::bind(&LidarReplay::publish_imu, this));
+        mocap_timer_ = create_wall_timer(std::chrono::milliseconds(20), std::bind(&LidarReplay::publish_mocap, this));
     }
 
 private:
-    // ---------------- LIDAR ----------------
-
-    void load_lidar()
-    {
+    void load_lidar() {
         fs::path meta_path = fs::path(lidar_dir_) / "metadata.json";
         std::ifstream meta_file(meta_path);
         if (!meta_file.is_open())
@@ -74,8 +55,7 @@ private:
         auto files = list_files(lidar_dir_, "scan_", ".bin");
         RCLCPP_INFO(get_logger(), "Found %zu LiDAR scan files", files.size());
 
-        for (const auto &f : files)
-        {
+        for (const auto &f : files) {
             uint32_t sec, nsec;
             parse_timestamp_from_filename(f.filename().string(), sec, nsec);
 
@@ -96,8 +76,7 @@ private:
             msg.row_step   = meta["row_step"];
             msg.is_dense   = meta["is_dense"];
 
-            for (auto &f : meta["fields"])
-            {
+            for (auto &f : meta["fields"]) {
                 sensor_msgs::msg::PointField pf;
                 pf.name = f["name"];
                 pf.offset = f["offset"];
@@ -111,26 +90,11 @@ private:
         }
     }
 
-    void publish_lidar()
-    {
-        if (lidar_msgs_.empty()) return;
-        if (lidar_idx_ >= lidar_msgs_.size())
-        {
-            if (!loop_) return;
-            lidar_idx_ = 0;
-        }
-        lidar_pub_->publish(lidar_msgs_[lidar_idx_++]);
-    }
-
-    // ---------------- IMU ----------------
-
-    void load_imu()
-    {
+    void load_imu() {
         auto files = list_files(imu_dir_, "imu_", ".json");
         RCLCPP_INFO(get_logger(), "Found %zu IMU JSON files", files.size());
 
-        for (const auto &f : files)
-        {
+        for (const auto &f : files) {
             std::ifstream in(f);
             json j; in >> j;
 
@@ -167,32 +131,17 @@ private:
         }
     }
 
-    void publish_imu()
-    {
-        if (imu_msgs_.empty()) return;
-        if (imu_idx_ >= imu_msgs_.size())
-        {
-            if (!loop_) return;
-            imu_idx_ = 0;
-        }
-        imu_pub_->publish(imu_msgs_[imu_idx_++]);
-    }
-
-    // ---------------- MOCAP ----------------
-
-    void load_mocap()
-    {
+    void load_mocap() {
         fs::path path = fs::path(csv_dir_) / "mocap_poses.csv";
         std::ifstream in(path);
         if (!in.is_open())
             throw std::runtime_error("Failed to open mocap_poses.csv");
 
         std::string line;
-        std::getline(in, line); // header
+        std::getline(in, line);
 
         size_t count = 0;
-        while (std::getline(in, line))
-        {
+        while (std::getline(in, line)) {
             std::stringstream ss(line);
             std::string field;
 
@@ -223,38 +172,44 @@ private:
         RCLCPP_INFO(get_logger(), "Found %zu mocap pose entries", count);
     }
 
-    void publish_mocap()
-    {
+    void publish_lidar() {
+        if (lidar_msgs_.empty()) return;
+        if (lidar_idx_ >= lidar_msgs_.size()) {
+            if (!loop_) return;
+            lidar_idx_ = 0;
+        }
+        lidar_pub_->publish(lidar_msgs_[lidar_idx_++]);
+    }
+
+    void publish_imu() {
+        if (imu_msgs_.empty()) return;
+        if (imu_idx_ >= imu_msgs_.size()) {
+            if (!loop_) return;
+            imu_idx_ = 0;
+        }
+        imu_pub_->publish(imu_msgs_[imu_idx_++]);
+    }
+
+    void publish_mocap() {
         if (mocap_msgs_.empty()) return;
-        if (mocap_idx_ >= mocap_msgs_.size())
-        {
+        if (mocap_idx_ >= mocap_msgs_.size()) {
             if (!loop_) return;
             mocap_idx_ = 0;
         }
         mocap_pub_->publish(mocap_msgs_[mocap_idx_++]);
     }
 
-    // ---------------- Helpers ----------------
-
-    static std::vector<fs::path> list_files(
-        const std::string &dir,
-        const std::string &prefix,
-        const std::string &ext)
-    {
+    static std::vector<fs::path> list_files(const std::string &dir, const std::string &prefix, const std::string &ext) {
         std::vector<fs::path> out;
 
-        for (const auto &e : fs::directory_iterator(dir))
-        {
+        for (const auto &e : fs::directory_iterator(dir)) {
             const std::string name = e.path().filename().string();
 
             if (name.size() < prefix.size() + ext.size())
                 continue;
 
-            const bool has_prefix =
-                name.compare(0, prefix.size(), prefix) == 0;
-
-            const bool has_suffix =
-                name.compare(name.size() - ext.size(), ext.size(), ext) == 0;
+            const bool has_prefix = name.compare(0, prefix.size(), prefix) == 0;
+            const bool has_suffix = name.compare(name.size() - ext.size(), ext.size(), ext) == 0;
 
             if (has_prefix && has_suffix)
                 out.push_back(e.path());
@@ -264,11 +219,7 @@ private:
         return out;
     }
 
-    static void parse_timestamp_from_filename(
-        const std::string &name,
-        uint32_t &sec,
-        uint32_t &nsec)
-    {
+    static void parse_timestamp_from_filename(const std::string &name, uint32_t &sec, uint32_t &nsec) {
         auto a = name.find('_');
         auto b = name.find('_', a + 1);
         auto c = name.find('.', b);
@@ -276,8 +227,6 @@ private:
         sec  = std::stoul(name.substr(a + 1, b - a - 1));
         nsec = std::stoul(name.substr(b + 1, c - b - 1));
     }
-
-    // ---------------- Members ----------------
 
     std::string lidar_dir_, imu_dir_, csv_dir_;
     bool loop_{true};
@@ -302,7 +251,7 @@ private:
 int main(int argc, char **argv)
 {
     rclcpp::init(argc, argv);
-    rclcpp::spin(std::make_shared<LidarPicklerRepublisher>());
+    rclcpp::spin(std::make_shared<LidarReplay>());
     rclcpp::shutdown();
     return 0;
 }
