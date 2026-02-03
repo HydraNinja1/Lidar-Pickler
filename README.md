@@ -43,18 +43,20 @@ Dependencies:
 1. Record Data
 Run with desried sensor enable via parameters:
 ```bash
-ros2 run lidar_pickler lidar_pickler_node \
-  --ros-args \
+ros2 run lidar_pickler lidar_pickler_node --ros-args \
   -p lidar:=true -p imu:=true -p camera:=true \
-  -p odom:=true -p pose:=true -p mocap:=true \
-  -p fmu_in:=true -p fmu_out:=true
+  -p odometry:=true -p odometry_bridged:=true -p deskewed:=true -p keyframes:=true \
+  -p mocap:=true -p mocap_bridged:=true -p fmu_in:=true -p fmu_out:=true \
+  -p gps:=true -p common_timestamp:=true -p parent_dir:="."
 ```
 2. Replay Data
 Replays LiDAR + IMU logs in real-time:
 ```bash
-ros2 run lidar_pickler lidar_pickler_node \
-  --ros-args \
-  -p lidar:=true -p imu:=true -p camera:=true \
-  -p odom:=true -p pose:=true -p mocap:=true \
-  -p fmu_in:=true -p fmu_out:=true
+ros2 run lidar_pickler lidar_unpickler_node --ros-args -p parent_dir:="."
 ```
+3. Replay Fixed Rate Data
+Replays LiDAR, IMU + Mocap logs in real-time:
+```bash
+ros2 run lidar_pickler lidar_unpickler_fixed --ros-args -p parent_dir:="."
+```
+
